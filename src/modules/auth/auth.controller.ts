@@ -10,23 +10,29 @@ const userRepository = datasource.getRepository(User);
 
 authController.post('/signup', async (req: Request, res: Response) => {
   try {
-    const { username, email, password } = req.body;
+    const { name, email, password } = req.body;
 
     // バリデーション
-    if (!username || !email || !password) {
-      res.status(400).json({ message: 'ユーザー名、メール、パスワードは必須です' });
+    if (!name || !email || !password) {
+      res
+        .status(400)
+        .json({ message: 'ユーザー名、メール、パスワードは必須です' });
       return;
     }
 
     if (password.length < 8) {
-      res.status(400).json({ message: 'パスワードは8文字以上である必要があります' });
+      res
+        .status(400)
+        .json({ message: 'パスワードは8文字以上である必要があります' });
       return;
     }
 
     // 重複チェック
     const existingUser = await userRepository.findOne({ where: { email } });
     if (existingUser) {
-      res.status(400).json({ message: 'このメールアドレスは既に使用されています' });
+      res
+        .status(400)
+        .json({ message: 'このメールアドレスは既に使用されています' });
       return;
     }
 
@@ -34,7 +40,7 @@ authController.post('/signup', async (req: Request, res: Response) => {
     const hashedPassword = await hash(password, 10);
     const user = await userRepository.save({
       id: uuidv4(),
-      username,
+      name,
       email,
       password: hashedPassword,
     });
@@ -64,14 +70,18 @@ authController.post('/signin', async (req: Request, res: Response) => {
     // ユーザー検索
     const user = await userRepository.findOne({ where: { email } });
     if (!user) {
-      res.status(401).json({ message: 'メールアドレスまたはパスワードが正しくありません' });
+      res
+        .status(401)
+        .json({ message: 'メールアドレスまたはパスワードが正しくありません' });
       return;
     }
 
     // パスワード検証
     const isValidPassword = await compare(password, user.password);
     if (!isValidPassword) {
-      res.status(401).json({ message: 'メールアドレスまたはパスワードが正しくありません' });
+      res
+        .status(401)
+        .json({ message: 'メールアドレスまたはパスワードが正しくありません' });
       return;
     }
 

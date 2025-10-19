@@ -8,7 +8,7 @@ import noteController from './modules/notes/note.controller';
 import labelController from './modules/labels/label.controller';
 
 const app = express();
-const PORT = 8888;
+const PORT = process.env.PORT || 8888;
 
 // ミドルウェア
 app.use(cors());
