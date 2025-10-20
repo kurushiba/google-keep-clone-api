@@ -11,43 +11,10 @@ const noteController = Router();
 const noteRepository = datasource.getRepository(Note);
 const labelRepository = datasource.getRepository(Label);
 
-// メモ一覧取得（ページネーション対応）
+// メモ一覧取得（ページネーション対応・検索機能統合）
 noteController.get('/', Auth, async (req: Request, res: Response) => {
   try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 20;
-    const skip = (page - 1) * limit;
-
-    const [notes, total] = await noteRepository.findAndCount({
-      where: { userId: req.currentUser!.id },
-      relations: ['labels'],
-      order: { position: 'ASC', createdAt: 'DESC' },
-      skip,
-      take: limit,
-    });
-
-    res.status(200).json({
-      notes,
-      pagination: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-      },
-    });
-  } catch (error) {
-    console.error('Get notes error:', error);
-    res.status(500).json({ message: 'サーバーエラーが発生しました' });
-  }
-});
-
-// メモ検索
-noteController.get('/search', Auth, async (req: Request, res: Response) => {
-  try {
     const query = (req.query.q as string) || '';
-    const labelIds = req.query.labels
-      ? (req.query.labels as string).split(',')
-      : [];
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
     const skip = (page - 1) * limit;
@@ -57,24 +24,19 @@ noteController.get('/search', Auth, async (req: Request, res: Response) => {
       .leftJoinAndSelect('note.labels', 'label')
       .where('note.userId = :userId', { userId: req.currentUser!.id });
 
-    // テキスト検索
+    // テキスト検索（タイトル・本文・ラベル名を対象）
     if (query) {
       queryBuilder.andWhere(
-        '(note.title LIKE :query OR note.content LIKE :query)',
+        '(note.title LIKE :query OR note.content LIKE :query OR label.name LIKE :query)',
         {
           query: `%${query}%`,
         }
       );
     }
 
-    // ラベルフィルタ
-    if (labelIds.length > 0) {
-      queryBuilder.andWhere('label.id IN (:...labelIds)', { labelIds });
-    }
-
     const [notes, total] = await queryBuilder
-      .orderBy('note.position', 'ASC')
-      .addOrderBy('note.createdAt', 'DESC')
+      .orderBy('note.createdAt', 'DESC')
+      .addOrderBy('note.position', 'ASC')
       .skip(skip)
       .take(limit)
       .getManyAndCount();
@@ -89,7 +51,7 @@ noteController.get('/search', Auth, async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    console.error('Search notes error:', error);
+    console.error('Get notes error:', error);
     res.status(500).json({ message: 'サーバーエラーが発生しました' });
   }
 });
@@ -195,71 +157,72 @@ noteController.put(
   Auth,
   upload.single('image'),
   async (req: Request, res: Response) => {
-  try {
-    const note = await noteRepository.findOne({
-      where: { id: req.params.id, userId: req.currentUser!.id },
-      relations: ['labels'],
-    });
+    try {
+      const note = await noteRepository.findOne({
+        where: { id: req.params.id, userId: req.currentUser!.id },
+        relations: ['labels'],
+      });
 
-    if (!note) {
-      res.status(404).json({ message: 'メモが見つかりません' });
-      return;
-    }
-
-    const { title, content, imageUrl, labelIds, position } = req.body;
-
-    // ラベルの更新
-    if (labelIds !== undefined) {
-      const labelIdArray = JSON.parse(labelIds);
-      if (labelIdArray.length > 0) {
-        note.labels = await labelRepository.find({
-          where: { id: In(labelIdArray), userId: req.currentUser!.id },
-        });
-      } else {
-        note.labels = [];
-      }
-    }
-
-    // 画像ファイルがアップロードされた場合
-    if (req.file) {
-      const port = process.env.PORT || 8888;
-      note.imageUrl = `http://localhost:${port}/uploads/images/${req.file.filename}`;
-    }
-
-    // その他のフィールド更新
-    if (title !== undefined) note.title = title;
-    if (content !== undefined) note.content = content;
-    if (imageUrl !== undefined) note.imageUrl = imageUrl;
-    if (position !== undefined) note.position = position;
-
-    await noteRepository.save(note);
-
-    const updatedNote = await noteRepository.findOne({
-      where: { id: note.id },
-      relations: ['labels'],
-    });
-
-    res.status(200).json(updatedNote);
-  } catch (error) {
-    console.error('Update note error:', error);
-
-    // multerのエラーハンドリング
-    if (error instanceof Error) {
-      if (error.message.includes('File too large')) {
-        res
-          .status(400)
-          .json({ message: 'ファイルサイズは5MB以下にしてください' });
+      if (!note) {
+        res.status(404).json({ message: 'メモが見つかりません' });
         return;
       }
-      if (error.message.includes('画像ファイル')) {
-        res.status(400).json({ message: error.message });
-        return;
-      }
-    }
 
-    res.status(500).json({ message: 'サーバーエラーが発生しました' });
+      const { title, content, imageUrl, labelIds, position } = req.body;
+
+      // ラベルの更新
+      if (labelIds !== undefined) {
+        const labelIdArray = JSON.parse(labelIds);
+        if (labelIdArray.length > 0) {
+          note.labels = await labelRepository.find({
+            where: { id: In(labelIdArray), userId: req.currentUser!.id },
+          });
+        } else {
+          note.labels = [];
+        }
+      }
+
+      // 画像ファイルがアップロードされた場合
+      if (req.file) {
+        const port = process.env.PORT || 8888;
+        note.imageUrl = `http://localhost:${port}/uploads/images/${req.file.filename}`;
+      }
+
+      // その他のフィールド更新
+      if (title !== undefined) note.title = title;
+      if (content !== undefined) note.content = content;
+      if (imageUrl !== undefined) note.imageUrl = imageUrl;
+      if (position !== undefined) note.position = position;
+
+      await noteRepository.save(note);
+
+      const updatedNote = await noteRepository.findOne({
+        where: { id: note.id },
+        relations: ['labels'],
+      });
+
+      res.status(200).json(updatedNote);
+    } catch (error) {
+      console.error('Update note error:', error);
+
+      // multerのエラーハンドリング
+      if (error instanceof Error) {
+        if (error.message.includes('File too large')) {
+          res
+            .status(400)
+            .json({ message: 'ファイルサイズは5MB以下にしてください' });
+          return;
+        }
+        if (error.message.includes('画像ファイル')) {
+          res.status(400).json({ message: error.message });
+          return;
+        }
+      }
+
+      res.status(500).json({ message: 'サーバーエラーが発生しました' });
+    }
   }
-});
+);
 
 // メモ削除
 noteController.delete('/:id', Auth, async (req: Request, res: Response) => {
