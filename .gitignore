@@ -1,6 +1,5 @@
 node_modules
 dist
-.env
 data/*.sqlite
 uploads/images/*
 !uploads/images/.gitkeep
