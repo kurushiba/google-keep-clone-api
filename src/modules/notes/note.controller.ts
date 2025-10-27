@@ -16,7 +16,7 @@ noteController.get('/', Auth, async (req: Request, res: Response) => {
   try {
     const query = (req.query.q as string) || '';
     const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 20;
+    const limit = parseInt(req.query.limit as string) || 12;
     const skip = (page - 1) * limit;
 
     const queryBuilder = noteRepository
