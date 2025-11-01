@@ -27,7 +27,7 @@ app.use('/notes', noteController);
 app.use('/labels', labelController);
 
 // ヘルスチェック
-app.get('/health', (req, res) => {
+app.get('/', (req, res) => {
   res.status(200).json({ status: 'OK' });
 });
 
